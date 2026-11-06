@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $Classes = Join-Path $Root "build\classes"
-$Marker = Join-Path $Classes "org\fog\test\perfeval\VRGameFog.class"
+$Marker = Join-Path $Classes (($MainClass -replace '\.', '\') + ".class")
 
 if (-not (Test-Path $Marker)) {
     & (Join-Path $PSScriptRoot "compile.ps1")

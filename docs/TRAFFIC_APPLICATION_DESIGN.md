@@ -2,13 +2,13 @@
 
 Date: 6 November 2026.  
 Simulator commit: `5f68d3947e450d8d2b4af42670be819206be68c9`.  
-Status: design only. The application has not been implemented and has not been executed.
+Status: implemented as `org.traffic.prototype.TrafficManagementPrototype` and executed once on 6 November 2026. The run exited 0 and printed both loop lines. Device sizes, edge lengths, and sensor intervals remain assumptions about traffic, not measured road values. The execution transcript is in `docs/FIRST_TRAFFIC_SIMULATION.md`.
 
 This document is a blueprint for a small runnable scenario. It is not EAAS, not a traffic-signal controller, and not a claim about real roads. CPU lengths, bandwidths, latencies, and sensor intervals below are **assumptions** chosen so the first run is short and readable. They are not measured traffic values.
 
 Labels:
 
-- **Verified:** read from the cited method in this checkout. Not yet observed in a traffic run.
+- **Verified:** read from the cited method in this checkout. Where a later section says the 6 November 2026 run observed a line, that observation is one execution of this class, not a repeated experiment.
 - **Assumption:** a number or naming choice for the prototype.
 - **Rejected for this prototype:** a proposed hop that the current routing code will not perform.
 
@@ -255,7 +255,7 @@ controller.submitApplication(application, 0, placement);
 
 **Verified API shape.** `ModuleMapping.createModuleMapping` and the two-argument `addModuleToDevice` are public (`ModuleMapping.java`, lines 15 and 36). `ModulePlacementMapping`'s constructor calls `mapModules` immediately (`ModulePlacementMapping.java`, lines 31–41), which matches `TwoApps` building the mapping before `CloudSim.startSimulation`. `Controller.submitApplication(Application, int, ModulePlacement)` stores the policy and wires sensors (`Controller.java`, lines 188–209). Launch events are sent later from `Controller.startEntity` via `processAppSubmit` (lines 222–238): `ACTIVE_APP_UPDATE`, then `APP_SUBMIT` and `LAUNCH_MODULE` for each placed module object.
 
-`LAUNCH_MODULE` calls `processVmCreate` again (`FogDevice.java`, line 824) after placement already called `vmCreate`. Whether the second create is a no-op was not executed for this topology. The first review run must confirm that the log contains `Creating intersection_processor on device intersection-0` (and the same for 1, 2, plus the regional and cloud lines) and that the simulation still reaches the results block.
+`LAUNCH_MODULE` calls `processVmCreate` again (`FogDevice.java`, line 824) after placement already called `vmCreate`. The 6 November 2026 run reached the results block with all five `Creating` lines, so the second create did not stop this topology. `Log.disable()` hides the allocation messages from that call, so the log does not show whether the second create printed a failure before the tuples ran. Section 12 records what the run actually printed.
 
 ## 9. Simulator API verification
 
@@ -268,14 +268,14 @@ controller.submitApplication(application, 0, placement);
 | Is the selectivity graph valid? | Yes, if each input/output pair is registered with `addTupleMapping` and each output type has its own edge. Missing mappings produce no tuple. |
 | Can workloads be deterministic with existing classes? | Yes, with `DeterministicDistribution`. Sensors keep emitting until `MAX_SIMULATION_TIME`. |
 | Does `Tuple.DOWN` broadcast a module to all children and run it everywhere? | No. Downward forwarding visits every child, but a child that already has a different VM id for that module name drops the tuple. |
-| Does an actuator tuple from the regional device reach all three signals? | Yes, by the code in `sendTupleToActuator` and `sendDown`. Delivery is serial on one south link. This has not been executed. |
+| Does an actuator tuple from the regional device reach all three signals? | The source path is `sendTupleToActuator` then `sendDown`, serial on one south link. The run closed the `SIGNAL` loop, which proves one actuator received a tuple. It does not print which actuator, and it does not prove all three received a copy. |
 | Does the stock results printer support per-intersection p95? | No. One mean per `AppLoop`, then `System.exit(0)`. |
 
 `FogBroker` remains an id owner only. Its `processEvent` is empty. The research class should still create one broker and pass `broker.getId()` into the application, as `VRGameFog` does.
 
 ## 10. Known limitations
 
-- The design has not been compiled or run. API conclusions are source readings.
+- The class was compiled and run once. API conclusions that the run did not print remain source readings. Section 12 lists the observed lines.
 - `SIGNAL_COMMAND` does not re-enter `intersection_processor`. A review slide must not say the intersection module handles the command.
 - The three actuators do not finish at one timestamp. The loop average records only the first.
 - Congestion loop delay excludes `cloud_analytics` CPU.
@@ -284,7 +284,7 @@ controller.submitApplication(application, 0, placement);
 - No deadline, queue-wait log, or per-tuple trace exists. Do not report deadline-miss ratio from this prototype.
 - Energy and cloud cost are the stock device totals. They are modeled watts and a `ratePerMips` charge, not a city energy bill.
 - `System.exit(0)` inside `Controller.processEvent` still ends the JVM at `STOP_SIMULATION`.
-- `scripts/compile.ps1` compiles only `simulator/src`. The implementation task has to compile the new class and put `simulator/src` plus the research output on the classpath. That script change is part of implementation, not this design.
+- `scripts/compile.ps1` compiles `simulator/src` and `src`. The recorded compile used 446 sources. The default run command is still `VRGameFog`.
 - `VRGameFog` stays untouched. The new scenario is a new class outside `simulator/src`.
 
 ## 11. Minimal implementation sequence
@@ -306,4 +306,21 @@ Do this after the design is accepted. Do not start EAAS in the same change.
    - exit code 0.
 8. Only after that run, mark the design's simulator assumptions as validated in `PROJECT_STATUS.md`. If a `Creating` line is missing or a loop line is missing, stop and fix the scenario before any scheduler work.
 
-The numbers in this file can change after that run if the log shows a module that cannot be created or a loop that never closes. Until that log exists, they remain assumptions.
+## 12. What the first run confirmed
+
+The class `org.traffic.prototype.TrafficManagementPrototype` was compiled with the simulator and executed with `scripts/run-example.ps1`. Exit code was 0. The console showed:
+
+- `Creating intersection_processor on device intersection-0`, `intersection-1`, and `intersection-2`
+- `Creating regional_coordinator on device regional-fog`
+- `Creating cloud_analytics on device cloud`
+- `0.0 Submitted application traffic_management`
+- both `AppLoop` lines, ending at `cloud_analytics` and `SIGNAL`
+- CPU-delay lines for `TRAFFIC_SAMPLE`, `INTERSECTION_STATUS`, `REGIONAL_REPORT`, `EMERGENCY_EVENT`, and `EMERGENCY_ALERT`
+
+`SIGNAL_COMMAND` did not appear in the CPU-delay list. That matches the actuator path: the tuple is delivered, not executed as a cloudlet. The emergency loop still closed, which is the evidence that a `SIGNAL` actuator received it.
+
+The `Creating` lines were not in the order of the `addModuleToDevice` calls. `ModulePlacementMapping` walks a `HashMap`, so that order can change. All five placements were present.
+
+No upstream file was edited. The second `vmCreate` inside `LAUNCH_MODULE` did not stop this run. `Log.disable()` hides CloudSim allocation messages, so this run does not show whether that second create printed a failure before the tuples ran. The tuples did run on the placed modules.
+
+The numeric loop delays, energy, cost, and network usage from this launch are recorded in `docs/FIRST_TRAFFIC_SIMULATION.md`. They are one execution of the assumed parameters, not a traffic result and not a golden file. A second launch can differ slightly for the same reasons already recorded for `VRGameFog`.

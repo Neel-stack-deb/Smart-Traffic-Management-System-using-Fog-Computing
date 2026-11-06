@@ -5,7 +5,7 @@
 > decisions, assumptions, open questions, implementation constraints,
 > and next actions.
 >
-> **Status:** Research/design baseline; iFogSim2 build and example validated; tuple path inspected; traffic application designed but not implemented or run; EAAS not started.
+> **Status:** First traffic prototype runs and prints both application loops. EAAS is not started. Per-task latency distributions are not yet collected.
 >
 > **Last updated:** 2026-11-06\
 > **Repository:** `Neel-stack-deb/Smart-Traffic-Management-System-using-Fog-Computing` (`main`)\
@@ -121,10 +121,10 @@ vehicle movement are separate concerns.
 | Research scan | Initial report available; verification required | Covers fog traffic systems, scheduling, iFogSim/iFogSim2, SUMO, and metrics |
 | Research gap | Provisional | Must be checked against closest primary papers before novelty claims |
 | Simulator choice | iFogSim2 checkout validated; research feasibility gate open | Pinned upstream submodule; build and untouched example verified. Task-level scheduling hook and metric validity remain to be tested |
-| Repository | Initialized and documented | `main` has the setup docs. The tuple-lifecycle note, the traffic design, and the later status updates are written locally and are not yet committed |
-| Build environment | Verified | JDK 22.0.2, `javac --release 21`; 445 Java sources compile with two upstream warnings |
-| Example execution | Verified | `VRGameFog` exits 0 and prints expected report sections; it is not a traffic workload |
-| Architecture | Tuple path inspected; first traffic topology designed, not run | See `docs/TRAFFIC_APPLICATION_DESIGN.md`. Design is not complete until a prototype run confirms placement and signal delivery |
+| Repository | Initialized and documented | `main` has the setup docs. The prototype, the later docs, and this status file are local and are not yet committed |
+| Build environment | Verified | JDK 22.0.2, `javac --release 21`; the last compile included 446 sources and the same two upstream warnings |
+| Example execution | Verified | `VRGameFog` remains the default script target. `TrafficManagementPrototype` also exited 0 and printed both traffic loops |
+| Architecture | First traffic prototype executed | `TrafficManagementPrototype` places three intersection processors, one regional coordinator, and cloud analytics. Both loops printed. EAAS is not in this run |
 | Scheduler | Candidate EAAS only; not started | Provisional hook is a `FogDevice` subclass plus a non-time-shared cloudlet scheduler. Formula not finalized. The review prototype does not include EAAS |
 | Baselines | Proposed, not implemented | Cloud-only, static fog, FCFS, priority/EDF variants |
 | Experiments | Not started | No project results exist |
@@ -155,7 +155,7 @@ primary evidence.
 | SUMO | Optional for the initial scheduling study | Add only if vehicle movement, intersection dynamics, route time, or traffic-light behavior becomes part of the research question |
 | Existing smoke test | `VRGameFog` is an environment smoke test only | It validates build/run wiring, not traffic workload behavior or EAAS performance |
 | EAAS integration hook | Provisional, not implemented | Per-task decisions belong in a research `FogDevice` subclass at `processTupleArrival`, with a separate cloudlet scheduler for CPU order. Placement stays the static baseline. Validate with a subclass experiment before any upstream edit |
-| First-review topology | Drafted from source, not validated by a run | One `cloud`, one `regional-fog`, three intersection devices, static `ModulePlacementMapping`. `SIGNAL_COMMAND` is an actuator broadcast, not a downward module tuple. Numeric sizes and intervals are assumptions. Do not call the design complete until the prototype log shows three processor instances and both loops |
+| First-review topology | Implemented and executed once | `org.traffic.prototype.TrafficManagementPrototype` exited 0 on 6 November 2026. The log showed three `intersection_processor` placements, `regional_coordinator`, `cloud_analytics`, and both loop lines. `SIGNAL_COMMAND` is an actuator broadcast. Sizes and intervals remain assumptions. One launch is not a repeated experiment |
 
 These decisions can change only when new source inspection, experiments,
 or primary research evidence justify the change. Record the reason in the
@@ -260,7 +260,8 @@ The following documents are already committed under `docs/`:
 - `docs/IFOGSIM_CONCEPTS.md` — CloudSim event kernel, fog topology, application graph, placement, controller, and metric classes.
 - `docs/AVAILABLE_EXAMPLES.md` — examples discovered in source, with only `VRGameFog` marked as executed.
 - `docs/TUPLE_LIFECYCLE_ANALYSIS.md` — source trace of tuple execution, scheduling, routing, metrics, and provisional EAAS hooks.
-- `docs/TRAFFIC_APPLICATION_DESIGN.md` — first-review topology and application graph. Source-checked, not executed. Not a completed design until that run succeeds.
+- `docs/TRAFFIC_APPLICATION_DESIGN.md` — first-review topology. The placement and both loops were observed in one run; numeric parameters remain assumptions.
+- `docs/FIRST_TRAFFIC_SIMULATION.md` — how to run `TrafficManagementPrototype` and the console output of the successful launch.
 
 ### 3.5 What this validation does not establish
 
@@ -777,6 +778,8 @@ project-root/
 │   └── settings.json
 ├── PROJECT_STATUS.md
 ├── simulator/                  # pinned upstream iFogSim2 submodule
+├── src/
+│   └── org/traffic/prototype/TrafficManagementPrototype.java
 ├── scripts/
 │   ├── compile.ps1
 │   └── run-example.ps1
@@ -786,7 +789,8 @@ project-root/
     ├── IFOGSIM_CONCEPTS.md
     ├── AVAILABLE_EXAMPLES.md
     ├── TUPLE_LIFECYCLE_ANALYSIS.md
-    └── TRAFFIC_APPLICATION_DESIGN.md
+    ├── TRAFFIC_APPLICATION_DESIGN.md
+    └── FIRST_TRAFFIC_SIMULATION.md
 ```
 
 ### 11.2 Candidate project-specific additions
@@ -852,7 +856,7 @@ supported by verified primary sources.
 -   [x] Document the repository, environment, concepts, and available examples.
 -   [x] Trace the actual tuple/task lifecycle and identify a provisional per-task hook (`docs/TUPLE_LIFECYCLE_ANALYSIS.md`). The hook is not experimentally validated.
 -   [ ] Validate project-relevant latency, compute, network, energy, and queue measurement paths.
--   [ ] Implement the scenario in `docs/TRAFFIC_APPLICATION_DESIGN.md` without EAAS, then confirm three `intersection_processor` placements, both loop lines, and exit code 0. The design stays provisional until that log exists.
+-   [x] Implement `org.traffic.prototype.TrafficManagementPrototype` without EAAS. One run exited 0 and printed three `intersection_processor` placements, the regional and cloud modules, and both loop lines.
 
 **Exit criterion:** A reproducible traffic-workload baseline and a
 simulator-validation note with validated project-specific metrics. The
@@ -1013,9 +1017,8 @@ relevance; - what remains different in our proposed work.
     constructors are public. This is not confirmed by a run.
 4.  Are tasks modeled as tuples, cloudlets, or a project-level job
     abstraction mapped onto simulator events? The draft traffic
-    application uses iFogSim tuples directly. A separate job type is
-    not required for the first review. This remains provisional until
-    the prototype runs.
+    application uses iFogSim tuples directly. The first prototype ran
+    on that model. A separate job type is not required for the review.
 5.  What is the precise definition of end-to-end latency for each task
     class?
 6.  What deadline ranges can be justified from literature or scenario
@@ -1158,6 +1161,7 @@ When continuing this project:
 | 2026-11-06 | Recorded Cursor's repository inspection: iFogSim2 submodule commit pinned, JDK 22.0.2 / `--release 21` build verified, `VRGameFog` example exits 0, and setup documentation committed. Research-specific simulator feasibility remains open. |
 | 2026-11-06 | Recorded the tuple-lifecycle inspection. Provisional EAAS hook is a research `FogDevice` subclass plus a custom cloudlet scheduler. EAAS is not implemented. Per-task metrics and the subclass experiment remain open. |
 | 2026-11-06 | Drafted `docs/TRAFFIC_APPLICATION_DESIGN.md` from the placement and routing APIs. The design is not complete: it has not been implemented or run. `SIGNAL_COMMAND` is specified as an actuator broadcast because a downward module tuple does not execute on every copy of `intersection_processor`. |
+| 2026-11-06 | Added `TrafficManagementPrototype` and ran it once. Compile used `javac --release 21` on 446 sources. The process exited 0 and printed both loop lines. EAAS was not added. Per-task distributions are still not collected. |
 
 ------------------------------------------------------------------------
 
@@ -1167,7 +1171,7 @@ When continuing this project:
     primary sources, beginning with the closest traffic-surveillance,
     emergency-vehicle, iFogSim2, and priority-aware scheduling papers.
 2.  **Repository inspection:** Complete. The research repo is initialized, the iFogSim2 submodule is pinned, and setup documentation is committed.
-3.  **Simulator feasibility:** Build/run is verified and the tuple path is traced. A first-review traffic design is drafted and is not yet a running program. Next implement that design outside `simulator/src`, confirm the placement and loop log, and do not implement EAAS in that step.
+3.  **Simulator feasibility:** The first traffic prototype runs. Next keep `VRGameFog` and `TrafficManagementPrototype` reproducible, then add per-task logs before any scheduler. Do not implement EAAS until those logs exist.
 4.  **Research decision:** Finalize the narrow contribution only after
     steps 1--3.
 5.  **Baseline-first implementation:** Build a minimal synthetic

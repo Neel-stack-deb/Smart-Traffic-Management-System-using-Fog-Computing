@@ -1,10 +1,13 @@
-# Compiles the vendored iFogSim sources without modifying them.
+# Compiles the vendored iFogSim sources and the research sources under src/.
 # Requires JDK 21 or newer (CloudSim 7 calls List.getFirst/getLast).
 # Class files are written to build/classes at the workspace root.
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
-$Src = Join-Path $Root "simulator\src"
+$SourceRoots = @(
+    (Join-Path $Root "simulator\src"),
+    (Join-Path $Root "src")
+)
 $Out = Join-Path $Root "build\classes"
 $SourceList = Join-Path $Root "build\sources.txt"
 
@@ -21,8 +24,13 @@ if ($Jars.Count -eq 0) {
 }
 
 $ClassPath = ($Jars | ForEach-Object { $_.FullName }) -join ";"
-Get-ChildItem $Src -Recurse -Filter *.java | ForEach-Object { $_.FullName } |
-    Set-Content -Encoding ascii $SourceList
+$SourceFiles = @()
+foreach ($SourceRoot in $SourceRoots) {
+    if (Test-Path $SourceRoot) {
+        $SourceFiles += Get-ChildItem $SourceRoot -Recurse -Filter *.java
+    }
+}
+$SourceFiles | ForEach-Object { $_.FullName } | Set-Content -Encoding ascii $SourceList
 
 $JavacVersion = (cmd /c "javac -version 2>&1" | Select-Object -First 1)
 Write-Host "javac: $JavacVersion"
