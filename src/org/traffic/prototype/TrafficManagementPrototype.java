@@ -84,11 +84,12 @@ public class TrafficManagementPrototype {
 			Log.printLine("TrafficManagementPrototype finished!");
 		} catch (Exception e) {
 			e.printStackTrace();
-			Log.printLine("Unwanted errors happen");
+			System.err.println("TrafficManagementPrototype failed: " + e.getMessage());
+			System.exit(1);
 		}
 	}
 
-	private static void createFogDevices(int userId, String appId) {
+	private static void createFogDevices(int userId, String appId) throws Exception {
 		FogDevice cloud = createFogDevice("cloud", 44800, 40000, 100, 10000, 0, 0.01, 16 * 103, 16 * 83.25);
 		cloud.setParentId(-1);
 		cloud.setUplinkLatency(0);
@@ -147,7 +148,7 @@ public class TrafficManagementPrototype {
 	}
 
 	private static FogDevice createFogDevice(String nodeName, long mips, int ram, long upBw, long downBw, int level,
-			double ratePerMips, double busyPower, double idlePower) {
+			double ratePerMips, double busyPower, double idlePower) throws Exception {
 		List<Pe> peList = new ArrayList<Pe>();
 		peList.add(new Pe(0, new PeProvisionerOverbooking(mips)));
 
@@ -180,12 +181,12 @@ public class TrafficManagementPrototype {
 		FogDeviceCharacteristics characteristics = new FogDeviceCharacteristics(
 				arch, os, vmm, host, timeZone, cost, costPerMem, costPerStorage, costPerBw);
 
-		FogDevice fogDevice = null;
+		final FogDevice fogDevice;
 		try {
 			fogDevice = new FogDevice(nodeName, characteristics, new AppModuleAllocationPolicy(hostList), storageList,
 					10, upBw, downBw, 0, ratePerMips);
 		} catch (Exception e) {
-			e.printStackTrace();
+			throw new Exception("Failed to create fog device '" + nodeName + "'", e);
 		}
 
 		fogDevice.setLevel(level);

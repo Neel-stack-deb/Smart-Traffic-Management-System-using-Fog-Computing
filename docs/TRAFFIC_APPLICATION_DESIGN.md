@@ -164,7 +164,7 @@ Actuator **type** must equal the actuator edge's **destination**, not the tuple 
 | `regional_coordinator` | `cloud_analytics` | `REGIONAL_REPORT` | `Tuple.UP` | `AppEdge.MODULE` | 3000 | 1200 |
 | `regional_coordinator` | `SIGNAL` | `SIGNAL_COMMAND` | `Tuple.DOWN` | `AppEdge.ACTUATOR` | 100 | 300 |
 
-CPU and network lengths are **assumptions**, in the units those edge fields already use (CPU length becomes the cloudlet length; network length becomes `cloudletFileSize`). At 3000 MIPS with no sharing, a length of 3000 finishes in about one simulation time unit, because `CloudletScheduler.updateCloudletsProcessing` adds `timeSpan * allocatedMips * Consts.MILLION` of finished work. That scale comment is an interpretation of the scheduler, not a timed traffic experiment.
+CPU and network lengths are **assumptions**. They are not rescaled in the prototype. The clock they run on is documented in section 7.1. A length of 3000 at 3000 MIPS, with the PE unshared, is 1 simulated second under that convention. It is not a measured traffic processing time, and it is not an emergency deadline.
 
 Selectivity, all `new FractionalSelectivity(1.0)`:
 
@@ -238,6 +238,40 @@ Collected here so the implementation has one place to copy. Every numeric row is
 | App id | `traffic_management` | `Application.createApplication` |
 
 Device MIPS, bandwidth, latency, and power are in section 2. Edge lengths are in section 5.
+
+### 7.1 Simulated time and wall-clock time
+
+CloudSim 7, the core inside this iFogSim2 pin, advances a `double` clock in `CloudSim.clock()`. Event delays are added to that clock (`CloudSim.send`, `simulator/src/org/cloudbus/cloudsim/core/CloudSim.java`). The clock is not wall-clock time.
+
+The CPU convention is seconds:
+
+- `Cloudlet` stores length in million instructions (MI). Its comment gives the example 10000 MI on a 2000 MIPS processor takes 5 seconds (`Cloudlet.java`, lines 75–83).
+- `Consts.MILLION` is 1000000, and `Consts.MINUTE` is 60 seconds (`Consts.java`, lines 32–36).
+- `Cloudlet.getRemainingCloudletLength` converts the internal instruction counter back to MI by dividing by `Consts.MILLION` (`Cloudlet.java`, lines 1207–1214).
+- `CloudletScheduler.updateCloudletsProcessing` adds `timeSpan * allocatedMips * Consts.MILLION` to that instruction counter (`CloudletScheduler.java`, lines 92–97). The `MILLION` factor is on both the work done and the total length, so it cancels.
+- `CloudletScheduler.getEstimatedFinishTime` returns `time + remainingMi / allocatedMips` (`CloudletScheduler.java`, lines 360–362). With the javadoc above, that quotient is seconds.
+
+iFogSim does not convert those delays into another unit. `FogDevice.sendUpFreeLink` schedules the parent arrival at `fileSize / uplinkBandwidth + uplinkLatency`, and `sendDownFreeLink` does the same with the downlink (`FogDevice.java`, lines 863–868 and 891–898). Sensor and actuator `setLatency` values are passed straight to `send` as the event delay (`Sensor.java`, line 94). `Config.MAX_SIMULATION_TIME` is the delay of the `STOP_SIMULATION` event (`Controller.java`, line 81). `DeterministicDistribution` returns its constant as the next inter-emission delay.
+
+Read the prototype numbers in that clock, without changing them:
+
+| Parameter | Value in the class | Meaning on this clock |
+| --- | ---: | --- |
+| Cloud uplink latency | 0 | 0 simulated seconds |
+| Regional uplink latency | 100 | 100 simulated seconds |
+| Intersection 0 and 1 uplink latency | 4 | 4 simulated seconds |
+| Intersection 2 uplink latency | 6 | 6 simulated seconds |
+| Sensor and actuator latency | 1 | 1 simulated second |
+| Traffic emission interval | 20 | 20 simulated seconds |
+| Emergency emission interval | 200 | 200 simulated seconds |
+| `MAX_SIMULATION_TIME` | 1000 | stop at simulated time 1000 |
+| `TRAFFIC_SAMPLE` CPU length 3000 on a 3000 MIPS PE, unshared | 3000 MI | 1 simulated second of CPU |
+
+The congestion loop average from the recorded run is about 111.5. Most of that is the 100-second regional-to-cloud latency plus smaller CPU, queue, and bandwidth terms. It is a simulated-clock mean. It is not 111 milliseconds, and it is not evidence that an emergency was served inside a real deadline. The emergency loop, about 31, never crosses that 100-second cloud hop. The model still has no deadline field.
+
+Dividing the latency and interval constants by 1000, while leaving the CloudSim clock in seconds, would shrink those loop means by roughly that factor and would no longer match the recorded run. The prototype therefore keeps the constants as written.
+
+`EXECUTION TIME` is separate. `Controller` prints `Calendar.getInstance().getTimeInMillis() - TimeKeeper.getSimulationStartTime()` (`Controller.java`, line 149). That difference is wall-clock milliseconds spent inside the JVM. The first launch printed 198 and the validation rerun printed 129. Both are real milliseconds. Neither is simulated time, and neither is a loop delay.
 
 ## 8. Module-to-device mapping
 
@@ -317,7 +351,7 @@ The class `org.traffic.prototype.TrafficManagementPrototype` was compiled with t
 - both `AppLoop` lines, ending at `cloud_analytics` and `SIGNAL`
 - CPU-delay lines for `TRAFFIC_SAMPLE`, `INTERSECTION_STATUS`, `REGIONAL_REPORT`, `EMERGENCY_EVENT`, and `EMERGENCY_ALERT`
 
-`SIGNAL_COMMAND` did not appear in the CPU-delay list. That matches the actuator path: the tuple is delivered, not executed as a cloudlet. The emergency loop still closed, which is the evidence that a `SIGNAL` actuator received it.
+`SIGNAL_COMMAND` did not appear in the CPU-delay list. That matches the actuator path: the tuple is delivered, not executed as a cloudlet. The emergency loop still closed. `Actuator.processTupleArrival` updates that average for the first actuator that consumes the emit time, then removes the emit time. The printed line therefore proves that at least one `SIGNAL` actuator received a command. It does not name the actuator, and it does not independently prove that `signal-0`, `signal-1`, and `signal-2` all received a copy. The source path that fans a command out to every child is still `sendTupleToActuator` followed by `sendDown`. That path was not instrumented per actuator in this run.
 
 The `Creating` lines were not in the order of the `addModuleToDevice` calls. `ModulePlacementMapping` walks a `HashMap`, so that order can change. All five placements were present.
 

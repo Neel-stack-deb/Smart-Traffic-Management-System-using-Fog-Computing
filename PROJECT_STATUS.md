@@ -5,7 +5,7 @@
 > decisions, assumptions, open questions, implementation constraints,
 > and next actions.
 >
-> **Status:** First traffic prototype runs and prints both application loops. EAAS is not started. Per-task latency distributions are not yet collected.
+> **Status:** First-review traffic prototype is stable enough for the review. It was compiled and rerun after the exception-handling fix, and the default `VRGameFog` command still exits 0. EAAS is not started. The emergency loop proves one actuator delivery, not all three. Per-task latency distributions are not collected.
 >
 > **Last updated:** 2026-11-06\
 > **Repository:** `Neel-stack-deb/Smart-Traffic-Management-System-using-Fog-Computing` (`main`)\
@@ -155,7 +155,7 @@ primary evidence.
 | SUMO | Optional for the initial scheduling study | Add only if vehicle movement, intersection dynamics, route time, or traffic-light behavior becomes part of the research question |
 | Existing smoke test | `VRGameFog` is an environment smoke test only | It validates build/run wiring, not traffic workload behavior or EAAS performance |
 | EAAS integration hook | Provisional, not implemented | Per-task decisions belong in a research `FogDevice` subclass at `processTupleArrival`, with a separate cloudlet scheduler for CPU order. Placement stays the static baseline. Validate with a subclass experiment before any upstream edit |
-| First-review topology | Implemented and executed once | `org.traffic.prototype.TrafficManagementPrototype` exited 0 on 6 November 2026. The log showed three `intersection_processor` placements, `regional_coordinator`, `cloud_analytics`, and both loop lines. `SIGNAL_COMMAND` is an actuator broadcast. Sizes and intervals remain assumptions. One launch is not a repeated experiment |
+| First-review topology | Implemented and rerun after cleanup | `TrafficManagementPrototype` exits 0 and prints both loops. The `SIGNAL` loop proves at least one actuator received the command; it does not prove all three did. Latencies and CPU lengths stay in CloudSim's simulated seconds and were not rescaled. They are not an emergency-deadline result. `EXECUTION TIME` is wall-clock milliseconds |
 
 These decisions can change only when new source inspection, experiments,
 or primary research evidence justify the change. Record the reason in the
@@ -163,9 +163,10 @@ change log.
 
 ## 3. Verified repository and simulator baseline
 
-This section records the initial Cursor inspection. These are verified
-workspace facts as of 6 November 2026; they do not imply that the
-proposed traffic application or scheduler has been implemented.
+This section records the initial Cursor inspection of the simulator
+checkout. The first-review traffic prototype now exists outside the
+submodule and is recorded in section 2, section 19, and
+`docs/FIRST_TRAFFIC_SIMULATION.md`. EAAS is still not implemented.
 
 ### 3.1 Research repository
 
@@ -856,7 +857,7 @@ supported by verified primary sources.
 -   [x] Document the repository, environment, concepts, and available examples.
 -   [x] Trace the actual tuple/task lifecycle and identify a provisional per-task hook (`docs/TUPLE_LIFECYCLE_ANALYSIS.md`). The hook is not experimentally validated.
 -   [ ] Validate project-relevant latency, compute, network, energy, and queue measurement paths.
--   [x] Implement `org.traffic.prototype.TrafficManagementPrototype` without EAAS. One run exited 0 and printed three `intersection_processor` placements, the regional and cloud modules, and both loop lines.
+-   [x] Implement `org.traffic.prototype.TrafficManagementPrototype` without EAAS. The validation rerun on 6 November 2026 exited 0, printed three `intersection_processor` placements, the regional and cloud modules, and both loop lines. The default `VRGameFog` command also exited 0. The `SIGNAL` mean proves one actuator receipt, not delivery to all three. Per-task latency distributions are still not collected.
 
 **Exit criterion:** A reproducible traffic-workload baseline and a
 simulator-validation note with validated project-specific metrics. The
@@ -1162,6 +1163,7 @@ When continuing this project:
 | 2026-11-06 | Recorded the tuple-lifecycle inspection. Provisional EAAS hook is a research `FogDevice` subclass plus a custom cloudlet scheduler. EAAS is not implemented. Per-task metrics and the subclass experiment remain open. |
 | 2026-11-06 | Drafted `docs/TRAFFIC_APPLICATION_DESIGN.md` from the placement and routing APIs. The design is not complete: it has not been implemented or run. `SIGNAL_COMMAND` is specified as an actuator broadcast because a downward module tuple does not execute on every copy of `intersection_processor`. |
 | 2026-11-06 | Added `TrafficManagementPrototype` and ran it once. Compile used `javac --release 21` on 446 sources. The process exited 0 and printed both loop lines. EAAS was not added. Per-task distributions are still not collected. |
+| 2026-11-06 | Cleanup only. `main` now exits 1 on an initialization or simulation exception, and `createFogDevice` propagates a failure with the device name. Documented CloudSim's simulated seconds versus wall-clock `EXECUTION TIME`, and the one-actuator limit of the stock loop printer. Validation: `compile.ps1` exit 0; traffic main exit 0 with the same simulated loop means `111.54309333333323` and `31.024166666666602` and wall-clock `EXECUTION TIME` 129; default `VRGameFog` exit 0 with loop mean `229.25144629509822`. No EAAS, no scheduler, no upstream edit. |
 
 ------------------------------------------------------------------------
 
@@ -1171,7 +1173,7 @@ When continuing this project:
     primary sources, beginning with the closest traffic-surveillance,
     emergency-vehicle, iFogSim2, and priority-aware scheduling papers.
 2.  **Repository inspection:** Complete. The research repo is initialized, the iFogSim2 submodule is pinned, and setup documentation is committed.
-3.  **Simulator feasibility:** The first traffic prototype runs. Next keep `VRGameFog` and `TrafficManagementPrototype` reproducible, then add per-task logs before any scheduler. Do not implement EAAS until those logs exist.
+3.  **Simulator feasibility:** The first-review prototype and `VRGameFog` both exit 0. Remaining limits: the `SIGNAL` loop does not prove all three actuators, loop means are not per-task samples, and the current latencies are simulated seconds rather than a real emergency deadline. Next add per-task logs before any scheduler. Do not implement EAAS until those logs exist.
 4.  **Research decision:** Finalize the narrow contribution only after
     steps 1--3.
 5.  **Baseline-first implementation:** Build a minimal synthetic
